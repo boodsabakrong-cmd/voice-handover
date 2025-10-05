@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>บันทึกรับ-ส่งเวรด้วยเสียง (ละเอียด)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .recording-button {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+        }
+        .recording-button.recording {
+            animation: pulse-red 1.5s infinite;
+            background-color: #ef4444; /* Red 500 */
+        }
+        @keyframes pulse-red {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .file-list {
+            background-color: #f3f4f6;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        .audio-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .audio-item:last-child {
+            border-bottom: none;
+        }
+        .modal {
+            background-color: rgba(0, 0, 0, 0.5);
+            transition: opacity 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4">
+
+    <div class="max-w-md mx-auto bg-white p-6 rounded-xl shadow-lg">
+        <h1 class="text-2xl font-bold text-center text-blue-800 mb-6">ระบบรับ-ส่งเวรบันทึกเสียง</h1>
+        <p class="text-xs text-red-500 text-center mb-4 font-semibold">
+            🔐 **รหัสผ่านเริ่มต้น: PASS999** (สามารถแก้ไขได้) 🔐
+        </p>
+
+        <div class="space-y-4">
+
+            <!-- 1. Metadata Inputs -->
+            <div class="space-y-2">
+                <label for="senderName" class="block text-sm font-medium text-gray-700">ผู้ส่งเวร:</label>
+                <input type="text" id="senderName" placeholder="เช่น น.ส. อรุณรัตน์ (ช)" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                
+                <label for="receiverName" class="block text-sm font-medium text-gray-700 pt-2">ผู้รับเวร:</label>
+                <input type="text" id="receiverName" placeholder="เช่น น.ส. รุ่งนภา (บ)" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                
+                <label for="shiftType" class="block text-sm font-medium text-gray-700 pt-2">ประเภทเวร:</label>
+                <select id="shiftType" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                    <option value="เช้า -> บ่าย">เช้า → บ่าย</option>
+                    <option value="บ่าย -> ดึก">บ่าย → ดึก</option>
+                    <option value="ดึก -> เช้า">ดึก → เช้า</option>
+                    <option value="อื่นๆ">อื่นๆ</option>
+                </select>
+            </div>
+            
+            <!-- UPDATED: Password Input with default value -->
+            <div class="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                <label for="reportPassword" class="block text-sm font-medium text-yellow-800">🔒 รหัสผ่านชั่วคราวสำหรับรายงานนี้:</label>
+                <input type="text" id="reportPassword" value="PASS999" placeholder="เช่น 1234 (ต้องบอกคนในกลุ่ม)" class="w-full p-3 border border-yellow-300 rounded-lg focus:ring-yellow-500 focus:border-yellow-500 text-sm mt-1">
+                <p class="text-xs text-yellow-700 mt-1">รหัสนี้จะถูกใส่ในข้อความ LINE เพื่อให้เฉพาะคนที่รู้รหัสเท่านั้นที่เข้าถึงไฟล์ได้</p>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- 2. Voice Recording Section -->
+            <div class="text-center bg-blue-50 p-4 rounded-lg">
+                <p class="text-lg font-semibold text-blue-800 mb-3">บันทึกรายงานทีละคลิป (Segment)</p>
+                
+                <label for="patientBed" class="block text-sm font-medium text-gray-700 pt-2 text-left">หมายเลขเตียง:</label>
+                <input type="text" id="patientBed" placeholder="เช่น 12/1" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-pink-500 focus:border-pink-500 mb-3">
+
+                <label for="patientName" class="block text-sm font-medium text-gray-700 pt-2 text-left">ชื่อผู้ป่วย:</label>
+                <input type="text" id="patientName" placeholder="เช่น นายสมศักดิ์ รักชาติ" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-pink-500 focus:border-pink-500 mb-4">
+                
+                <button id="recordBtn" class="recording-button bg-red-500 text-white w-20 h-20 rounded-full flex items-center justify-center mx-auto text-sm font-bold shadow-xl">
+                    <span id="recordStatus">บันทึก</span>
+                </button>
+                <div id="recordingTimer" class="mt-2 text-gray-600">00:00</div>
+                <div id="audioStatus" class="mt-3 text-sm font-medium text-gray-500"></div>
+                
+                <button id="saveClipBtn" class="mt-4 w-full py-2 bg-yellow-500 text-white font-bold rounded-lg shadow-md hover:bg-yellow-600 transition duration-150 disabled:opacity-50" disabled>
+                    เพิ่มคลิปในรายการ (บันทึก)
+                </button>
+            </div>
+            
+            <!-- 3. Recorded Clips List -->
+            <div id="clipsContainer" class="file-list mt-4 hidden">
+                <p class="font-semibold text-gray-700 mb-2">💾 รายการคลิปเสียงที่บันทึกไว้:</p>
+                <div id="clipsList" class="space-y-2">
+                    <!-- Audio clips will be inserted here -->
+                </div>
+            </div>
+
+            <!-- 4. LINE API Setup (Set as Read-only with Placeholders) -->
+            <hr class="my-4">
+            <div class="space-y-2">
+                <label for="lineAccessToken" class="block text-sm font-medium text-gray-700">Channel Access Token:</label>
+                <input type="text" id="lineAccessToken" 
+                       value="7jDpt+d4TOw6B/PaXRV7UmbENXHkAU+6NEcuMeTm1tM6eva8H2wb62zY+iRJqPiAiYh96YbhmPe9wFG+3AKBceZqgfV9u4DOrlrtKnldI0iTRKGb3vxLD8HnZ09xMPT2rzol1unMgDA6ipWe2w0bnwdB04t89/1O/w1cDnyilFU=" 
+                       placeholder="คัดลอก Token ของ LINE Bot (Messaging API)" 
+                       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 text-gray-600 bg-gray-50 text-xs" readonly>
+                
+                <label for="lineRecipientId" class="block text-sm font-medium text-gray-700 pt-2">Group ID หรือ User ID ปลายทาง:</label>
+                <input type="text" id="lineRecipientId" 
+                       value="Cf52a26d2a2455bf0c79cdd08bca70d87" 
+                       placeholder="เช่น Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" 
+                       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 text-gray-600 bg-gray-50 text-xs" readonly>
+                <p class="text-xs text-gray-500 mt-1">รหัสปลายทางคือ Group ID ของกลุ่มรับ-ส่งเวร</p>
+            </div>
+
+            <!-- 5. Send Button -->
+            <button id="sendBtn" class="w-full py-3 bg-green-500 text-white font-bold rounded-lg shadow-md hover:bg-green-600 transition duration-150 disabled:opacity-50" disabled>
+                ส่งรายงานเวรไปยัง LINE (รวมทุกคลิป)
+            </button>
+            <div id="messageBox" class="mt-3 p-3 text-center rounded-lg text-sm hidden"></div>
+        </div>
+    </div>
+
+    <!-- Edit Clip Modal -->
+    <div id="editModal" class="modal fixed inset-0 z-50 flex items-center justify-center opacity-0 pointer-events-none">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm transform transition duration-300 translate-y-10">
+            <h2 class="text-xl font-bold text-blue-700 mb-4">แก้ไขข้อมูลคลิป</h2>
+            <p id="modalClipName" class="text-md font-semibold text-gray-600 mb-3"></p>
+            
+            <label for="modalBed" class="block text-sm font-medium text-gray-700">หมายเลขเตียง:</label>
+            <input type="text" id="modalBed" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-pink-500 focus:border-pink-500 mb-3">
+            
+            <label for="modalName" class="block text-sm font-medium text-gray-700">ชื่อผู้ป่วย:</label>
+            <input type="text" id="modalName" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-pink-500 focus:border-pink-500 mb-4">
+            
+            <div class="flex justify-end space-x-3">
+                <button id="closeModalBtn" class="py-2 px-4 bg-gray-300 text-gray-800 font-bold rounded-lg hover:bg-gray-400">ยกเลิก</button>
+                <button id="saveModalBtn" class="py-2 px-4 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600">บันทึก</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const recordBtn = document.getElementById('recordBtn');
+        const recordStatus = document.getElementById('recordStatus');
+        const recordingTimer = document.getElementById('recordingTimer');
+        const audioStatus = document.getElementById('audioStatus');
+        const saveClipBtn = document.getElementById('saveClipBtn');
+        const sendBtn = document.getElementById('sendBtn');
+        const senderNameInput = document.getElementById('senderName');
+        const receiverNameInput = document.getElementById('receiverName');
+        const shiftTypeInput = document.getElementById('shiftType');
+        const patientBedInput = document.getElementById('patientBed'); 
+        const patientNameInput = document.getElementById('patientName'); 
+        const reportPasswordInput = document.getElementById('reportPassword'); 
+        const lineAccessTokenInput = document.getElementById('lineAccessToken');
+        const lineRecipientIdInput = document.getElementById('lineRecipientId');
+        const clipsContainer = document.getElementById('clipsContainer');
+        const clipsList = document.getElementById('clipsList');
+        const messageBox = document.getElementById('messageBox');
+        
+        // Modal Elements
+        const editModal = document.getElementById('editModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const saveModalBtn = document.getElementById('saveModalBtn');
+        const modalClipName = document.getElementById('modalClipName');
+        const modalBedInput = document.getElementById('modalBed');
+        const modalNameInput = document.getElementById('modalName');
+
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let recordingStartTime;
+        let timerInterval;
+        let recordedClips = []; 
+        let currentBlob = null; 
+        let currentEditIndex = null; 
+
+        // IMPORTANT: In a real environment, this URL would be generated after uploading the audio file 
+        // to a storage service (like Google Cloud Storage or Firebase Storage).
+        const SIMULATED_FILE_BASE_URL = 'https://storage.google.com/handoff-voice/clip-';
+
+        // --- Utility Functions ---
+        function showMessage(message, type = 'success') {
+            messageBox.textContent = message;
+            messageBox.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+            if (type === 'error') {
+                messageBox.classList.add('bg-red-100', 'text-red-700');
+            } else {
+                messageBox.classList.add('bg-green-100', 'text-green-700');
+            }
+        }
+
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const secs = (seconds % 60).toString().padStart(2, '0');
+            return `${minutes}:${secs}`;
+        }
+
+        function updateTimer() {
+            const elapsedTime = Math.floor((Date.now() - recordingStartTime) / 1000);
+            recordingTimer.textContent = formatTime(elapsedTime);
+        }
+
+        function checkInputs() {
+            const accessToken = lineAccessTokenInput.value.trim();
+            const recipientId = lineRecipientIdInput.value.trim();
+            const sender = senderNameInput.value.trim();
+            const receiver = receiverNameInput.value.trim();
+            const password = reportPasswordInput.value.trim(); // Check that the field is not empty
+
+            // The button is enabled only if there is at least one clip AND all required fields are filled.
+            if (recordedClips.length > 0 && accessToken && recipientId && sender && receiver && password) {
+                sendBtn.disabled = false;
+            } else {
+                sendBtn.disabled = true;
+            }
+        }
+
+        // --- Recording Logic (Same as before) ---
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                currentBlob = null;
+                audioStatus.textContent = '';
+                messageBox.classList.add('hidden'); 
+                saveClipBtn.disabled = true;
+
+                if (!patientBedInput.value.trim() || !patientNameInput.value.trim()) {
+                    showMessage('⚠️ กรุณากรอกหมายเลขเตียงและชื่อผู้ป่วยก่อนเริ่มบันทึก', 'error');
+                    stream.getTracks().forEach(track => track.stop());
+                    return;
+                }
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    currentBlob = new Blob(audioChunks, { type: 'audio/mp3' });
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    audioStatus.textContent = `บันทึกเสร็จสิ้น: ${recordingTimer.textContent}`;
+                    saveClipBtn.disabled = false;
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                recordBtn.classList.add('recording', 'bg-red-700');
+                recordStatus.textContent = 'หยุด';
+
+                recordingStartTime = Date.now();
+                timerInterval = setInterval(updateTimer, 1000);
+
+            } catch (err) {
+                console.error('Microphone access denied or error:', err);
+                showMessage('ไม่สามารถเข้าถึงไมโครโฟนได้ โปรดตรวจสอบสิทธิ์การใช้งาน', 'error');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                recordBtn.classList.remove('recording', 'bg-red-700');
+                recordStatus.textContent = 'บันทึก';
+                clearInterval(timerInterval);
+            }
+        }
+
+        recordBtn.addEventListener('click', () => {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        });
+        
+        // --- Clip Management Logic (Same as before) ---
+
+        function saveCurrentClip() {
+            if (!currentBlob) return;
+
+            saveClipBtn.disabled = true;
+            audioStatus.textContent = 'กำลังจำลองการอัปโหลด...';
+
+            setTimeout(() => {
+                const timestamp = new Date().getTime();
+                const mockUrl = `${SIMULATED_FILE_BASE_URL}${timestamp}.mp3?t=${timestamp}`; 
+                const duration = recordingTimer.textContent;
+
+                const newClip = {
+                    url: mockUrl,
+                    duration: duration,
+                    bed: patientBedInput.value.trim(),
+                    name: patientNameInput.value.trim(),
+                };
+
+                recordedClips.push(newClip);
+                renderClipsList();
+                
+                audioStatus.textContent = `คลิปถูกบันทึกและพร้อมส่งแล้ว`;
+                recordingTimer.textContent = '00:00';
+                
+                // Clear patient info for next clip
+                patientBedInput.value = '';
+                patientNameInput.value = '';
+
+                checkInputs();
+
+            }, 1000);
+        }
+
+        saveClipBtn.addEventListener('click', saveCurrentClip);
+
+        function renderClipsList() {
+            clipsList.innerHTML = '';
+            if (recordedClips.length === 0) {
+                clipsContainer.classList.add('hidden');
+                return;
+            }
+
+            clipsContainer.classList.remove('hidden');
+            
+            recordedClips.forEach((clip, index) => {
+                const item = document.createElement('div');
+                item.className = 'audio-item flex-col items-start space-y-2';
+                item.innerHTML = `
+                    <div class="w-full flex justify-between items-center">
+                        <div class="text-sm font-semibold text-blue-800">
+                            คลิปที่ ${index + 1}: เตียง ${clip.bed || 'N/A'} - ${clip.name || 'ไม่ระบุชื่อ'}
+                        </div>
+                        <div class="flex space-x-2">
+                            <button data-index="${index}" class="edit-clip-btn text-blue-500 hover:text-blue-700 text-xs font-bold p-1 rounded transition duration-150">
+                                แก้ไข
+                            </button>
+                            <button data-index="${index}" class="delete-clip-btn text-red-500 hover:text-red-700 text-xs font-bold p-1 rounded transition duration-150">
+                                ลบ
+                            </button>
+                        </div>
+                    </div>
+                    <audio src="${clip.url}" controls class="w-full h-8"></audio>
+                    <div class="w-full text-xs text-gray-500">
+                        ระยะเวลา: ${clip.duration} | ลิงก์: <span class="text-xs truncate text-gray-400">${clip.url.substring(0, 30)}...</span>
+                    </div>
+                `;
+                clipsList.appendChild(item);
+            });
+
+            document.querySelectorAll('.delete-clip-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = parseInt(e.target.dataset.index);
+                    deleteClip(index);
+                });
+            });
+
+            document.querySelectorAll('.edit-clip-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = parseInt(e.target.dataset.index);
+                    openEditModal(index);
+                });
+            });
+        }
+
+        function deleteClip(index) {
+            recordedClips.splice(index, 1);
+            renderClipsList();
+            checkInputs();
+            showMessage('ลบคลิปสำเร็จ', 'error');
+        }
+
+        // --- Modal Functions (Same as before) ---
+        function openEditModal(index) {
+            currentEditIndex = index;
+            const clip = recordedClips[index];
+            
+            modalClipName.textContent = `กำลังแก้ไข: คลิปที่ ${index + 1} (${clip.duration})`;
+            modalBedInput.value = clip.bed;
+            modalNameInput.value = clip.name;
+
+            editModal.classList.remove('opacity-0', 'pointer-events-none');
+            editModal.querySelector('.transform').classList.remove('translate-y-10');
+        }
+
+        function closeEditModal() {
+            editModal.classList.add('opacity-0', 'pointer-events-none');
+            editModal.querySelector('.transform').classList.add('translate-y-10');
+            currentEditIndex = null;
+        }
+
+        saveModalBtn.addEventListener('click', () => {
+            if (currentEditIndex !== null) {
+                const bed = modalBedInput.value.trim();
+                const name = modalNameInput.value.trim();
+                
+                if (!bed || !name) {
+                    showMessage('⚠️ ข้อมูลเตียงและชื่อผู้ป่วยต้องไม่ว่างเปล่า', 'error');
+                    return;
+                }
+
+                recordedClips[currentEditIndex].bed = bed;
+                recordedClips[currentEditIndex].name = name;
+                
+                renderClipsList();
+                closeEditModal();
+                showMessage('✅ ข้อมูลคลิปได้รับการแก้ไขแล้ว');
+            }
+        });
+
+        closeModalBtn.addEventListener('click', closeEditModal);
+        
+        editModal.addEventListener('click', (e) => {
+            if (e.target.id === 'editModal') {
+                closeEditModal();
+            }
+        });
+
+
+        // --- LINE Messaging API Logic (Updated for Password) ---
+
+        async function sendHandoffReport() {
+            sendBtn.disabled = true;
+
+            const accessToken = lineAccessTokenInput.value.trim(); 
+            const recipientId = lineRecipientIdInput.value.trim(); 
+            const sender = senderNameInput.value.trim();
+            const receiver = receiverNameInput.value.trim();
+            const shiftType = shiftTypeInput.value;
+            const reportPassword = reportPasswordInput.value.trim(); 
+
+            if (!accessToken || !recipientId || recordedClips.length === 0 || !sender || !receiver || !reportPassword) {
+                showMessage('กรุณากรอกข้อมูลและบันทึกคลิปเสียงให้ครบถ้วน รวมถึงรหัสผ่าน', 'error');
+                sendBtn.disabled = false;
+                return;
+            }
+
+            // Generate detailed list of masked URLs for the LINE message
+            // We append a query parameter '?p=PASSWORD' to simulate security
+            let audioLinks = recordedClips.map((clip, index) => 
+                `📌 ${index + 1}. [เตียง ${clip.bed} - ${clip.name}] (${clip.duration})\n  🔗 ${clip.url}?p=${reportPassword}`
+            ).join('\n\n');
+
+            // Construct the LINE message object
+            const messageText = `
+📢 รายงานรับ-ส่งเวร (${shiftType})
+━━━━━━━━━━━━━━
+🔐 รหัสผ่านเข้าฟัง: ${reportPassword}
+━━━━━━━━━━━━━━
+👤 ผู้ส่งเวร: ${sender}
+🤝 ผู้รับเวร: ${receiver}
+🗓️ เวลาส่ง: ${new Date().toLocaleString('th-TH', { hour12: false })}
+
+---
+🎙️ รายละเอียดรายงาน (${recordedClips.length} คลิป)
+${audioLinks}
+---
+
+(เฉพาะผู้ที่ทราบรหัสผ่านเท่านั้นที่ควรเปิดลิงก์ด้านบน)
+`;
+            
+            const payload = {
+                to: recipientId,
+                messages: [{
+                    type: 'text',
+                    text: messageText
+                }]
+            };
+
+            const apiUrl = 'https://api.line.me/v2/bot/message/push';
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.status === 200) {
+                    showMessage('✅ ส่งรายงานเวรไปยัง LINE สำเร็จแล้ว! (ตรวจสอบกลุ่ม LINE ของคุณ)', 'success');
+                    // Clear recorded clips after sending
+                    recordedClips = [];
+                    renderClipsList();
+                    senderNameInput.value = '';
+                    receiverNameInput.value = '';
+                } else {
+                    const errorData = await response.json();
+                    console.error('LINE API Error Response:', errorData);
+                    showMessage(`❌ เกิดข้อผิดพลาดในการส่ง: ${errorData.message || 'โปรดตรวจสอบ Channel Access Token และ Group ID'}`, 'error');
+                }
+
+            } catch (error) {
+                console.error('Fetch Error:', error);
+                showMessage('❌ เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย', 'error');
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        sendBtn.addEventListener('click', sendHandoffReport);
+
+        // Check form state when user types 
+        senderNameInput.addEventListener('input', checkInputs);
+        receiverNameInput.addEventListener('input', checkInputs);
+        reportPasswordInput.addEventListener('input', checkInputs); 
+
+        // Initial setup
+        checkInputs(); 
+    </script>
+</body>
+</html>
